@@ -15,3 +15,5 @@ The dataset used is Netflix historical stock price data, stored in:
 
 ```text
 data/raw/NFLX.csv
+
+The dataset used is attached to the project
