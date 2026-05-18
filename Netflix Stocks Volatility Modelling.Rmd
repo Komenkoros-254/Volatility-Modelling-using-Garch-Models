@@ -1,0 +1,130 @@
+---
+title: "Volatility Modelling"
+author: "Komen Kipkoros Meshack"
+date: "2026-05-17"
+output:
+  pdf_document: default
+  html_document: default
+---
+library(quantmod)
+library(rugarch)
+library(PerformanceAnalytics)
+library(tseries)
+library(FinTS)
+setwd("C:/Users/MESHACK/Downloads")
+
+# Import Netflix dataset
+nflx <- read.csv("NFLX.csv")
+
+head(nflx)
+tail(nflx)
+# Format Date column
+nflx$Date <- as.Date(nflx$Date, format = "%m/%d/%Y")  
+
+# Sort by date
+nflx <- nflx[order(nflx$Date), ]
+
+# Calculate daily log returns using Adjusted Close
+nflx$return <- c(NA, diff(log(nflx$Adj.Close)))
+
+# Remove missing values
+nflx <- na.omit(nflx)
+
+head(nflx)
+# Plot Netflix daily returns
+plot(nflx$Date, nflx$return,
+     type = "l",
+     main = "Netflix Daily Log Returns",
+     xlab = "Date of Transaction",
+     ylab = "Log Daily Return",
+     col = "grey")
+ARCH Effect Test
+ArchTest(nflx$return, lags = 12)
+The p-value is 0.001052 which is less than 0.05, therefore i rejected the null hypothesis of no ARCH effects.
+Therefore, volatility clustering exists in Netflix returns.
+
+GARCH(1,1) Model
+garch_spec <- ugarchspec(
+  variance.model = list(
+    model = "sGARCH",
+    garchOrder = c(1, 1)
+  ),
+  mean.model = list(
+    armaOrder = c(0, 0),
+    include.mean = TRUE
+  ),
+  distribution.model = "std"
+)
+
+garch_fit <- ugarchfit(spec = garch_spec, data = nflx$return)
+
+garch_fit
+EGARCH(1,1) Model
+egarch_spec <- ugarchspec(
+  variance.model = list(
+    model = "eGARCH",
+    garchOrder = c(1, 1)
+  ),
+  mean.model = list(
+    armaOrder = c(0, 0),
+    include.mean = TRUE
+  ),
+  distribution.model = "std"
+)
+
+egarch_fit <- ugarchfit(spec = egarch_spec, data = nflx$return)
+
+egarch_fit
+GJR-GARCH(1,1) Model
+The GJR-GARCH model captures possible leverage effects, where negative shocks may increase volatility more than positive shocks.
+
+gjr_spec <- ugarchspec(
+  variance.model = list(
+    model = "gjrGARCH",
+    garchOrder = c(1, 1)
+  ),
+  mean.model = list(
+    armaOrder = c(0, 0),
+    include.mean = TRUE
+  ),
+  distribution.model = "std"
+)
+
+gjr_fit <- ugarchfit(spec = gjr_spec, data = nflx$return)
+
+gjr_fit
+Model Comparison
+model_compare <- rbind(
+  GARCH = infocriteria(garch_fit),
+  EGARCH = infocriteria(egarch_fit),
+  GJR_GARCH = infocriteria(gjr_fit)
+)
+
+model_compare
+The model with the lowest AIC and BIC is preferred.
+ GJR-GARCH has the lowest AIC( -4.673603) and BIC(-4.644343), then it is the best model among the three fitted models.
+
+Plot Estimated Volatility from GJR-GARCH
+gjr_vol <- sigma(gjr_fit)
+
+plot(nflx$Date, gjr_vol,
+     type = "l",
+     main = "Estimated Netflix Volatility: GJR-GARCH(1,1)",
+     xlab = "Date",
+     ylab = "Conditional Volatility",
+     col = "purple")
+Forecast Future Volatility
+Since GJR-GARCH is the best model according to AIC and BIC, i used it for forecasting.
+
+gjr_forecast <- ugarchforecast(gjr_fit, n.ahead = 15)
+
+gjr_forecast
+forecast_vol <- sigma(gjr_forecast)
+
+plot(forecast_vol,
+     type = "l",
+     main = "Netflix 15-Day Forecasted Volatility",
+     xlab = "Days Ahead",
+     ylab = "Conditional Volatility",
+     col = "red",
+     lwd = 2)
